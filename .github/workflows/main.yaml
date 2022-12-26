@@ -8,8 +8,8 @@ jobs:
   upload:
     runs-on: ubuntu-latest
     steps:
-        uses: actions/checkout@v3
-        uses: plopcas/hugo-s3-action@v1.3.0
+      - uses: actions/checkout@v3
+      - uses: plopcas/hugo-s3-action@v1.3.0
         env:
           AWS_REGION: ${{ secrets.REGION }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
