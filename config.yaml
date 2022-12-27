@@ -18,6 +18,8 @@ params:
       url: https://twitter.com/craigpastro
     - name: github
       url: https://github.com/craigpastro
+    - name: linkedin
+      url: https://www.linkedin.com/in/craigpastro/
   showReadingTime: true
   showCodeCopyButtons: true
 

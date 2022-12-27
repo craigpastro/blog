@@ -1,6 +1,6 @@
 ---
 title: "Deploy OpenFGA to Fly.io"
-date: 2022-12-25T14:32:25-08:00
+date: 2022-12-26T14:32:25-08:00
 draft: true
 ---
 
