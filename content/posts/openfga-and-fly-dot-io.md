@@ -1,62 +1,69 @@
 ---
 title: "Deploy OpenFGA to Fly.io"
-date: 2022-12-26T14:32:25-08:00
+date: 2022-12-28T14:32:25-08:00
 draft: true
 ---
 
 ## Prerequisites
 
-You will need to install [flyctl](https://fly.io/docs/getting-started/installing-flyctl/) and have a [Fly.io](https://fly.io) account.
+- You will need to install [flyctl](https://fly.io/docs/getting-started/installing-flyctl/) and have a [Fly.io](https://fly.io) account.
+- Clone the [OpenFGA repo](https://github.com/openfga/openfga) and cd into it. We will work in there.
 
-We will deploy OpenFGA from its Dockerfile. Clone the [OpenFGA repo](https://github.com/openfga/openfga) and add the last line below to its Dockerfile:
+## fly launch
 
-```Dockerfile
-FROM golang:1.19-alpine AS builder
+To create the initial config run
+```console
+fly launch
+```
+There will be a number of prompts:
+1. For the app name choose: openfga.
+2. Choose any region.
+3. Add a Postgres database using the Development configuration. After a minute or so, some output will be produced, the most important of which is the connection string. Make a note of it.
+4. Do not set up Redis.
+5. Do not deploy now.
 
-WORKDIR /app
+`fly launch` should have generated `fly.toml`. We will need to edit it in the next section.
 
-COPY . .
-RUN go build -o ./openfga ./cmd/openfga
+## Some configuration
 
-FROM alpine as final
-EXPOSE 8081
-EXPOSE 8080
-EXPOSE 3000
-COPY --from=builder /app/openfga /app/openfga
-COPY --from=builder /app/assets /app/assets
-WORKDIR /app
-ENTRYPOINT ["./openfga"]
-CMD ["run"] # NEED TO ADD THIS
+We need to do a bit of extra configuration. Let's first set the connection string for Postgres:
+```console
+fly secrets set OPENFGA_DATASTORE_URI=<connStr>
+```
+While we are at it, let's set an API key as well. Generate an API key and run:
+```console
+fly secrets set OPENFGA_AUTHN_PRESHARED_KEYS=<apiKey>
 ```
 
-## Create a Fly Postgres Cluster
+Now we need to edit the generated `fly.toml` file. We will need to add some fields to the `env`, `deploy` and `experimental` sections.
 
-```
-fly postgres create
-```
-and follow the prompts. Let's name the app `pg-openfga`.
+TODO: add some explaination to these config options.
 
-After some time this command should output something that looks like:
-```
-Postgres cluster pg-openfga created
-  Username:    postgres
-  Password:    QkPQcru3eTuiPYz
-  Hostname:    pg-openfga.internal
-  Proxy port:  5432
-  Postgres port:  5433
-  Connection string: postgres://postgres:QkPQcru3eTuiPYz@pg-openfga.internal:5432
+The `env` section should look like:
+```toml
+[env]
+OPENFGA_PLAYGROUND_ENABLED = "false"
+OPENFGA_DATASTORE_ENGINE = "postgres"
+OPENFGA_DATASTORE_MAX_IDLE_CONNS = "20"
+OPENFGA_AUTHN_METHOD = "preshared"
 ```
 
-Set the connection string for the app using `fly secrets`:
+The `deploy` section should look like:
+```toml
+[deploy]
+release_command = "migrate"
 ```
-flyctl secrets set OPENFGA_DATASTORE_URI=<connStr>
+
+And, finally, the `experimental` should look like:
+```toml
+[experimental]
+cmd = ["run"]
+allowed_public_ports = []
+auto_rollback = true
 ```
 
-## Fly launch
 
-Clone the OpenFGA repo, cd in, and run `fly launch`.
-
-Set the app name to "openfga".
+In the end your `fly.toml` should look like this:
 
 ```toml
 app = "openfga"
@@ -65,75 +72,85 @@ kill_timeout = 5
 processes = []
 
 [env]
-  OPENFGA_DATASTORE_ENGINE = "postgres"
-  OPENFGA_PLAYGROUND_ENABLED = "false"
-
-[experimental]
-  allowed_public_ports = []
-  auto_rollback = true
+OPENFGA_PLAYGROUND_ENABLED = "false"
+OPENFGA_DATASTORE_ENGINE = "postgres"
+OPENFGA_DATASTORE_MAX_IDLE_CONNS = "20"
+OPENFGA_AUTHN_METHOD = "preshared"
 
 [deploy]
-  release_command = "migrate"
+release_command = "migrate"
+
+[experimental]
+cmd = ["run"]
+allowed_public_ports = []
+auto_rollback = true
 
 [[services]]
-  http_checks = []
-  internal_port = 8080
-  processes = ["app"]
-  protocol = "tcp"
-  script_checks = []
-  [services.concurrency]
-    hard_limit = 25
-    soft_limit = 20
-    type = "connections"
+http_checks = []
+internal_port = 8080
+processes = ["app"]
+protocol = "tcp"
+script_checks = []
+[services.concurrency]
+hard_limit = 25
+soft_limit = 20
+type = "connections"
 
-  [[services.ports]]
-    force_https = true
-    handlers = ["http"]
-    port = 80
+[[services.ports]]
+force_https = true
+handlers = ["http"]
+port = 80
 
-  [[services.ports]]
-    handlers = ["tls", "http"]
-    port = 443
+[[services.ports]]
+handlers = ["tls", "http"]
+port = 443
 
-  [[services.tcp_checks]]
-    grace_period = "1s"
-    interval = "15s"
-    restart_limit = 0
-    timeout = "2s"
-
+[[services.tcp_checks]]
+grace_period = "1s"
+interval = "15s"
+restart_limit = 0
+timeout = "2s"
 ```
 
-## View the status
+## Deploy
 
+Deploy OpenFGA to Fly.io:
+```console
+fly deploy
 ```
-$ fly status
-App
-  Name     = openfga          
-  Owner    = personal         
-  Version  = 2                
-  Status   = running          
-  Hostname = openfga.fly.dev  
-  Platform = nomad            
-
-Deployment Status
-  ID          = e4c952a0-21f2-b3d9-c090-172e7997da0e         
-  Version     = v2                                           
-  Status      = successful                                   
-  Description = Deployment completed successfully            
-  Instances   = 1 desired, 1 placed, 1 healthy, 0 unhealthy  
-
-Instances
-ID              PROCESS VERSION REGION  DESIRED STATUS  HEALTH CHECKS           RESTARTS        CREATED   
-1c73bb82        app     2       sea     run     running 1 total, 1 passing      0               2m49s ago
+Once deployment is finished, OpenFGA should be running at `https://openfga.fly.dev`. Try to create a store
 ```
+curl -XPOST 'https://openfga.fly.dev/stores' \
+-H 'Authorization: Bearer <apiKey>'
+-H 'Content-Type: application/json' \
+-d '{
+    "name": "openfga-on-fly-dot-io"
+}'
+```
+Then write a model and tuples, authorize some users.
+
+## View the status or logs
+
+You can view the status of your deployment with `fly status` and logs with `fly logs`.
 
 ## Destroy the app
 
-```
+You can destroy the app and the database with the following commands:
+```console
 fly destroy openfga
+fly destroy openfga-db
 ```
 
 Check the the app is destroyed by checking that the app is no longer listed in
-```
+```console
 fly list apps
+```
+
+## Deploy from the Docker image
+
+TODO:
+
+```toml
+[build]
+  image = "openfga/openfga:latest"
 ```
