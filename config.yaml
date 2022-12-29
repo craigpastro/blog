@@ -1,0 +1,29 @@
+baseURL: https://d1zozjsyfqzng.cloudfront.net
+languageCode: en-us
+title: Craig Pastro
+enableEmoji: true
+
+module:
+  imports:
+  - path: github.com/adityatelange/hugo-PaperMod
+
+params:
+  homeInfoParams:
+    Title: Hi there 👋
+    Content: Welcome to my blog
+  socialIcons:
+    - name: mastodon
+      url: https://hachyderm.io/@craigpastro
+    - name: twitter
+      url: https://twitter.com/craigpastro
+    - name: github
+      url: https://github.com/craigpastro
+    - name: linkedin
+      url: https://www.linkedin.com/in/craigpastro/
+  showReadingTime: true
+  showCodeCopyButtons: true
+
+deployment:
+  targets:
+    - name: S3
+      URL: "s3://ycvmgeeodurlcdnxqucs?region=us-west-2"
